@@ -1,0 +1,205 @@
+import pandas as pd
+df = pd.read_csv('ecommerce_customers_large.csv')
+print(df)
+
+# Essential imports
+import pandas as pd
+
+# 1️ Load dataset
+df = pd.read_csv("ecommerce_customers_large.csv")
+
+# 2️ Initial exploration
+print("Shape:", df.shape)
+print("Memory usage:", f"{df.memory_usage(deep=True).sum()/(1024**2):.2f} MB")
+print(df.info())
+
+# 3️ Missing values per column
+print("\nMissing values:\n", df.isnull().sum())
+
+# 4️ Data types
+print("\nData types:\n", df.dtypes)
+
+# 5️ Duplicates
+dupe_count = df.duplicated().sum()
+print(f"\nDuplicate rows: {dupe_count}")
+
+# 6️ Basic numeric stats
+print("\nNumeric summary:\n", df.describe())
+
+# 7️ Categorical summary
+cat_cols = df.select_dtypes(include=['object', 'category']).columns
+for col in cat_cols:
+    print(f"\nColumn '{col}' unique values: {df[col].nunique()}")
+    print(df[col].value_counts(dropna=False).head())
+
+# 8️ Additional checks (based on best practices) :contentReference[oaicite:1]{index=1}
+#    • Range checks for numeric columns (e.g., Age or Income)
+for col in df.select_dtypes(include=['int', 'float']).columns:
+    print(f"\nOut-of-range values in '{col}':")
+    lower, upper = df[col].mean() - 3*df[col].std(), df[col].mean() + 3*df[col].std()
+    print(df[(df[col] < lower) | (df[col] > upper)][col].head())
+
+#    • Domain checks for category columns
+# Example for Gender
+valid_genders = ['Male', 'Female']
+print("\nInvalid Gender entries:\n", df[~df['Gender'].isin(valid_genders)]['Gender'].unique())
+
+#    • Format checks (e.g., emails, if present)
+#    • Length checks, completeness, foreign key constraints, etc. :contentReference[oaicite:2]{index=2}
+
+# Task 2
+
+import pandas as pd
+import numpy as np
+
+# 1️ Load data
+df = pd.read_csv("ecommerce_customers_large.csv")
+
+# ⭕ 1. Handle Missing Values
+print("Missing values per column:\n", df.isnull().sum())
+# Strategy: For object columns, fill with mode; for numeric, median
+for col in df.columns:
+    if df[col].isnull().any():
+        if df[col].dtype == 'object':
+            df[col].fillna(df[col].mode()[0], inplace=True)
+        else:
+            df[col].fillna(df[col].median(), inplace=True)
+
+# 🟢 2. Remove Duplicates
+print("Duplicates before:", df.duplicated().sum())
+df = df.drop_duplicates(keep='first')  # you can use subset=[...] or keep='last'/False :contentReference[oaicite:1]{index=1}
+print("Duplicates after:", df.duplicated().sum())
+
+# 3. Fix Data Types
+print("Before types:\n", df.dtypes)
+# Convert numeric-like strings to numbers
+for col in df.select_dtypes(include='object').columns:
+    df[col] = pd.to_numeric(df[col], errors='ignore')
+# Convert date columns if present
+# df['DateCol'] = pd.to_datetime(df['DateCol'], errors='coerce')
+# Standardize text fields
+for col in df.select_dtypes(include='object').columns:
+    df[col] = df[col].str.strip().str.lower()
+print("After types:\n", df.dtypes)
+
+# 🧹 4. Clean Text Data
+# E.g., if name, phone, email columns exist:
+# df['Name'] = df['Name'].str.title().str.strip()
+# df['Phone'] = df['Phone'].str.replace(r'\D+', '', regex=True)
+# df['Email'] = df['Email'].str.lower().str.strip()
+
+#Task 3
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+# Load cleaned data
+df = pd.read_csv("ecommerce_customers_large.csv")
+
+# Select only numeric columns
+num_cols = df.select_dtypes(include=np.number).columns
+
+# Store results for documentation
+outlier_summary = {}
+
+for col in num_cols:
+    col_data = df[col].dropna()
+    
+    # IQR Method
+    Q1 = col_data.quantile(0.25)
+    Q3 = col_data.quantile(0.75)
+    IQR = Q3 - Q1
+    lower_bound = Q1 - 1.5 * IQR
+    upper_bound = Q3 + 1.5 * IQR
+    iqr_outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)][col]
+    
+    # Z-Score Method
+    z_scores = np.abs(stats.zscore(col_data))
+    zscore_outliers = df[(z_scores > 3)][col]  # Z-score threshold = 3
+    
+    # Combine
+    total_outliers = set(iqr_outliers.index).union(set(zscore_outliers.index))
+    outlier_count = len(total_outliers)
+    total_count = df.shape[0]
+    percent = round((outlier_count / total_count) * 100, 2)
+
+    # Decision logic (example): Cap if <5%, else flag for review
+    if percent < 5:
+        df[col] = np.where(df[col] > upper_bound, upper_bound,
+                           np.where(df[col] < lower_bound, lower_bound, df[col]))
+        decision = "Capped"
+    else:
+        decision = "Needs Review"
+
+    # Document decisions
+    outlier_summary[col] = {
+        "Outlier_Count": outlier_count,
+        "Total_Rows": total_count,
+        "Percent": percent,
+        "Decision": decision,
+        "IQR_Bounds": (round(lower_bound, 2), round(upper_bound, 2))
+    }
+
+# Save treated dataset
+df.to_csv("outlier_treated_ecommerce_customers.csv", index=False)
+
+# Print documentation
+print("📊 Outlier Treatment Summary:")
+for col, info in outlier_summary.items():
+    print(f"\n▶ Column: {col}")
+    for key, val in info.items():
+        print(f"   - {key}: {val}")
+#Task 4
+
+# ---------------------------------
+# Begin Feature Engineering
+# ---------------------------------
+feature_data = df.copy()
+
+# 1. Customer Tenure (simulate registration date)
+np.random.seed(42)
+feature_data["RegistrationDate"] = pd.to_datetime(
+    np.random.choice(pd.date_range("2015-01-01", "2022-01-01"), size=len(feature_data))
+)
+feature_data["CustomerTenureDays"] = (pd.Timestamp.today() - feature_data["RegistrationDate"]).dt.days
+
+# 2. Average Order Value
+feature_data["AvgOrderValue"] = feature_data["AnnualIncome"] / feature_data["PurchaseFrequency"]
+feature_data["AvgOrderValue"].replace([np.inf, -np.inf], np.nan, inplace=True)
+
+# 3. Days Since Last Order (renamed)
+feature_data.rename(columns={"LastPurchaseDaysAgo": "DaysSinceLastOrder"}, inplace=True)
+
+# 4. Age Groups
+feature_data["AgeGroup"] = pd.cut(
+    feature_data["Age"],
+    bins=[0, 18, 30, 45, 60, 100],
+    labels=["<18", "18-30", "31-45", "46-60", "60+"]
+)
+
+# 5. Income Brackets (quartiles)
+feature_data["IncomeBracket"] = pd.qcut(
+    feature_data["AnnualIncome"],
+    q=4,
+    labels=["Low", "Mid", "High", "Very High"]
+)
+
+# 6. Spending Categories (based on SpendingScore)
+feature_data["SpendingCategory"] = pd.cut(
+    feature_data["SpendingScore"],
+    bins=[-1, 30, 60, 100],
+    labels=["Low", "Medium", "High"]
+)
+
+# 7. Interaction Feature: Income Per Order
+feature_data["IncomePerOrder"] = feature_data["AnnualIncome"] / feature_data["PurchaseFrequency"]
+feature_data["IncomePerOrder"].replace([np.inf, -np.inf], np.nan, inplace=True)
+
+# ---------------------------------
+# View Result
+# ---------------------------------
+print(feature_data[[
+    "CustomerID", "CustomerTenureDays", "AvgOrderValue", "DaysSinceLastOrder",
+    "Age", "AgeGroup", "AnnualIncome", "IncomeBracket",
+    "SpendingScore", "SpendingCategory", "IncomePerOrder"
+]])
